@@ -1,4 +1,4 @@
-name: Build slurm packages
+name: Build slurm packages / 25.05.5
 
 on:
   workflow_dispatch:
@@ -22,7 +22,7 @@ jobs:
           - linux/amd64
           - linux/arm64
         distribution:
-         - ubuntu24.04
+          - ubuntu24.04
         include:
           - platform: linux/amd64
             runner: X64
