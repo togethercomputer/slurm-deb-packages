@@ -148,7 +148,7 @@ jobs:
           aptly publish snapshot \
             -architectures=amd64 \
             -force-overwrite \
-            -gpg-skip-signing \
+            -skip-signing \
             "$snap" "s3:forge:"
 
       - name: Verify published Release is reachable
