@@ -1,0 +1,160 @@
+name: Publish to forge.together.xyz (R2)
+
+# Republishes the slurm-smd-* (and Pyxis) .deb GitHub Release artifacts built by
+# this repo into the R2-backed apt repo served at forge.together.xyz, so the
+# bare-metal Forge ansible (togethercomputer/infra) can `apt install` them.
+#
+# Layout: forge.together.xyz/<prefix>/dists/<suite>/...  <-- an aptly publish at
+# bucket prefix "<prefix>/" in the Cloudflare R2 bucket `together-forge`.
+#   prefix  = slurm<major>   (e.g. slurm25)   <- one apt repo per Slurm major
+#   suite   = noble | jammy  (from the distribution)
+# This mirrors the existing manual `slurm24` (jammy) repo. Unsigned to match
+# (the infra slurm-node role adds the source with `trusted: true`).
+#
+# Idempotent: each run gathers ALL releases for the chosen major+distribution and
+# republishes the repo from scratch (-force-overwrite), so re-running after a new
+# minor (e.g. 25.11.5) refreshes forge.together.xyz/slurm25 with every 25.x build.
+#
+# Required repo/org secrets (Cloudflare R2 API token scoped to write `together-forge`):
+#   R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY
+
+on:
+  workflow_dispatch:
+    inputs:
+      slurm_major:
+        description: "Slurm major version -> repo prefix slurm<major> (e.g. 25)"
+        required: true
+        default: "25"
+        type: string
+      distribution:
+        description: "Ubuntu distribution of the release artifacts"
+        required: true
+        default: ubuntu24.04
+        type: choice
+        options:
+          - ubuntu24.04
+          - ubuntu22.04
+      include_pyxis:
+        description: "Also publish the matching Pyxis releases"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  # Serialize publishes per target repo so concurrent runs don't race the S3 upload.
+  group: publish-forge-${{ inputs.slurm_major }}-${{ inputs.distribution }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish slurm${{ inputs.slurm_major }} (${{ inputs.distribution }})
+    runs-on: ubuntu-22.04-4core
+    env:
+      REPO: ${{ github.repository }}
+      MAJOR: ${{ inputs.slurm_major }}
+      DIST: ${{ inputs.distribution }}
+      INCLUDE_PYXIS: ${{ inputs.include_pyxis }}
+      R2_BUCKET: together-forge
+      R2_ENDPOINT: https://47b1b605b8ff0371ec661ebaf3b433c1.r2.cloudflarestorage.com
+      R2_REGION: WNAM
+    steps:
+      - name: Resolve apt suite and repo prefix
+        run: |
+          set -euo pipefail
+          case "$DIST" in
+            ubuntu24.04) suite=noble ;;
+            ubuntu22.04) suite=jammy ;;
+            *) echo "::error::unsupported distribution '$DIST'"; exit 1 ;;
+          esac
+          echo "SUITE=$suite" >> "$GITHUB_ENV"
+          echo "PREFIX=slurm${MAJOR}" >> "$GITHUB_ENV"
+
+      - name: Install aptly
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends aptly
+          aptly version
+
+      - name: Download release .debs for this major + distribution
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p debs
+          gh release list -R "$REPO" --limit 300 --json tagName -q '.[].tagName' > tags.txt
+
+          slurm_tags=$(grep -E "^slurm-packages-${DIST}-${MAJOR}\." tags.txt || true)
+          if [ -z "$slurm_tags" ]; then
+            echo "::error::no slurm-packages releases for major ${MAJOR} on ${DIST}"
+            exit 1
+          fi
+          echo "Slurm release tags:"; echo "$slurm_tags"
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            gh release download "$tag" -R "$REPO" -D debs -p '*.deb' --clobber
+          done <<< "$slurm_tags"
+
+          if [ "$INCLUDE_PYXIS" = "true" ]; then
+            pyxis_tags=$(grep -E "^pyxis-.*_slurm_${MAJOR}\..*_${DIST}$" tags.txt || true)
+            echo "Pyxis release tags:"; echo "${pyxis_tags:-<none>}"
+            while IFS= read -r tag; do
+              [ -n "$tag" ] || continue
+              gh release download "$tag" -R "$REPO" -D debs -p '*.deb' --clobber
+            done <<< "$pyxis_tags"
+          fi
+
+          echo "Downloaded packages:"; ls -1 debs
+
+      - name: Write aptly config (R2 publish endpoint)
+        run: |
+          set -euo pipefail
+          cat > "$HOME/.aptly.conf" <<EOF
+          {
+            "rootDir": "$HOME/.aptly",
+            "S3PublishEndpoints": {
+              "forge": {
+                "region": "${R2_REGION}",
+                "bucket": "${R2_BUCKET}",
+                "endpoint": "${R2_ENDPOINT}",
+                "prefix": "${PREFIX}/",
+                "acl": "public-read"
+              }
+            }
+          }
+          EOF
+
+      - name: Publish to R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ env.R2_REGION }}
+        run: |
+          set -euo pipefail
+          if [ -z "${AWS_ACCESS_KEY_ID:-}" ] || [ -z "${AWS_SECRET_ACCESS_KEY:-}" ]; then
+            echo "::error::R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY secrets are not set"
+            exit 1
+          fi
+          repo="${PREFIX}-${SUITE}"
+          aptly repo create -distribution="${SUITE}" -component=main "$repo"
+          aptly repo add "$repo" debs/
+          snap="${repo}-$(date +%s)"
+          aptly snapshot create "$snap" from repo "$repo"
+          # Stateless republish: the runner has no prior local publish state, so
+          # publish fresh and overwrite any existing remote files for this prefix.
+          aptly publish snapshot \
+            -architectures=amd64 \
+            -force-overwrite \
+            -gpg-skip-signing \
+            "$snap" "s3:forge:"
+
+      - name: Verify published Release is reachable
+        run: |
+          set -euo pipefail
+          url="https://forge.together.xyz/${PREFIX}/dists/${SUITE}/Release"
+          code=$(curl -fsS -o /dev/null -w '%{http_code}' --retry 5 --retry-delay 5 "$url" || true)
+          echo "$url -> HTTP ${code}"
+          test "$code" = "200"
