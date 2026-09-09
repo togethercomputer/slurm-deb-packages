@@ -68,7 +68,11 @@ RUN cd /usr/src \
 
 # Binary-only build. debuild applies debian/patches (quilt 3.0). Existing
 # slurm-smd jobs ship *.deb only (skip noisy *-dbgsym*.ddeb).
-RUN cd /usr/src/slurm-${SLURM_VERSION} \
+# Prior RUN layers wipe /var/lib/apt/lists; refresh indexes or mk-build-deps
+# cannot see universe packages (libmunge-dev and the rest of debian/control).
+RUN add-apt-repository -y universe \
+    && apt-get update \
+    && cd /usr/src/slurm-${SLURM_VERSION} \
     && mk-build-deps -i debian/control -t "apt-get -o Debug::pkgProblemResolver=yes --no-install-recommends -y" \
     && debuild -b -uc -us
 
