@@ -56,12 +56,14 @@ jobs:
         run: mkdir -p slurm_packages_output
 
       - name: Run Docker container and copy files
+        env:
+          IMAGE: slurm_wlm_hop:${{ matrix.slurm.version }}-${{ env.SHORT_SHA }}
         run: |
-          container_id=$(docker create slurm_wlm_hop:${{ matrix.slurm.version }}-${{ env.SHORT_SHA }})
-          docker start $container_id
-          docker cp $container_id:/usr/src/debs/ ./slurm_packages_output/
-          docker stop $container_id
-          docker rm $container_id
+          container_id=$(docker create "$IMAGE")
+          docker start "$container_id"
+          docker cp "$container_id:/usr/src/debs/" ./slurm_packages_output/
+          docker stop "$container_id"
+          docker rm "$container_id"
 
       - name: Upload hop debs as CI artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

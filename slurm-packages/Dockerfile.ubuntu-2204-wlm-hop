@@ -1,13 +1,14 @@
 # slurm-wlm 23.02.8 hop for jammy HNs (not slurm-smd). Do not publish to forge/slurm25.
-
-ARG BASE_IMAGE=ubuntu:22.04
-
-FROM $BASE_IMAGE
+# ubuntu:22.04 index digest from Docker Hub (2026-09-18).
+FROM ubuntu:22.04@sha256:b8b6ee6aa931ecd9d0d952abc34dc0e5f7c6a30c6bb71b079fe399fde0329c02
 
 ARG SLURM_VERSION=23.02.8
 ARG DEBIAN_FRONTEND=noninteractive
 # Ubuntu HPC debian/ is 23.02.7; overlay onto the SchedMD 23.02.8 tarball.
 ARG DEBIAN_TARBALL_URL=https://ppa.launchpadcontent.net/ubuntu-hpc/slurm-wlm-23.02/ubuntu/pool/main/s/slurm-wlm/slurm-wlm_23.02.7-0ubuntu1~hpc0.debian.tar.xz
+# SchedMD https://download.schedmd.com/slurm/SHA256 ; Launchpad .dsc Checksums-Sha256.
+ARG SLURM_TARBALL_SHA256=74a706e62d342a43e677991c92b1a30435148e44cf5d2e2a7bac8471f1a2006e
+ARG DEBIAN_TARBALL_SHA256=9b230da4ad0af95d5d277b3ab877dcb670300dccde4ef1fdae55d7626a947652
 
 ENV DEBFULLNAME="Together Computer"
 ENV DEBEMAIL="sre@together.ai"
@@ -48,9 +49,11 @@ RUN add-apt-repository -y ppa:ubuntu-hpc/slurm-wlm-23.02 \
 RUN cd /usr/src \
     && wget -O slurm-${SLURM_VERSION}.tar.bz2 \
         https://download.schedmd.com/slurm/slurm-${SLURM_VERSION}.tar.bz2 \
+    && echo "${SLURM_TARBALL_SHA256}  slurm-${SLURM_VERSION}.tar.bz2" | sha256sum -c - \
     && tar -xjf slurm-${SLURM_VERSION}.tar.bz2 \
     && rm -f slurm-${SLURM_VERSION}.tar.bz2 \
     && wget -O slurm-wlm.debian.tar.xz "${DEBIAN_TARBALL_URL}" \
+    && echo "${DEBIAN_TARBALL_SHA256}  slurm-wlm.debian.tar.xz" | sha256sum -c - \
     && tar -xJf slurm-wlm.debian.tar.xz -C slurm-${SLURM_VERSION} \
     && rm -f slurm-wlm.debian.tar.xz \
     && cd slurm-${SLURM_VERSION} \
