@@ -1,12 +1,9 @@
 name: Build slurm-wlm hop 22.04
-# One-shot hop (21.08 → 23.02.8 slurm-wlm) for jammy amd64 HNs.
-# Do not retarget slurm_packages.yml / slurm_packages_22.04.yml (slurm-smd 25.x).
-# Release tag slurm-wlm-ubuntu22.04-23.02.8 — not slurm-packages-* (slurm-smd).
+# slurm-wlm 23.02.8 hop (not slurm-smd). Do not retarget slurm_packages*.yml or publish to slurm25.
 
 on:
   workflow_dispatch:
-  # New workflow_dispatch files 404 until they exist on the default branch.
-  # Path-filtered pull_request lets this PR actually build hop debs first.
+  # workflow_dispatch 404s until this file is on main.
   pull_request:
     paths:
       - ".github/workflows/slurm_wlm_hop_22.04.yml"
@@ -74,6 +71,7 @@ jobs:
           if-no-files-found: error
 
       - name: Create GitHub Release and Upload DEB packages
+        # PRs upload CI artifacts only; GitHub Release is dispatch-only.
         if: github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@5be0e66d93ac7ed76da52eca8bb058f665c3a5fe # v2.4.2
         env:
