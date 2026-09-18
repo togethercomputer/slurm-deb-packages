@@ -69,3 +69,6 @@ RUN add-apt-repository -y universe \
 
 RUN mkdir /usr/src/debs && \
     mv /usr/src/*.deb /usr/src/debs/
+
+# Packaging needs root; the image is not a runtime service.
+USER nobody
