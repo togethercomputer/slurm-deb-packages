@@ -1,0 +1,29 @@
+# sync: true
+
+name: Label Pull Request with T-shirt Size
+
+on:
+  pull_request:
+    types: [opened, reopened, edited, synchronize]
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+defaults:
+  run:
+    shell: bash
+    working-directory: ./label-pr-size
+
+jobs:
+  _:
+    if: ${{ vars.ACTIONS_ENABLED == 'true' }}
+    uses: togethercomputer/github-actions/.github/workflows/shared--label-pr-size.yaml@v1
+    secrets:
+      SDLC_BOT_ID: ${{ secrets.SDLC_BOT_ID }}
+      SDLC_BOT_PRIVATE_KEY: ${{ secrets.SDLC_BOT_PRIVATE_KEY }}
+    with:
+      exclude_patterns: ${{ vars.LABEL_PR_SIZE_EXCLUDE }}

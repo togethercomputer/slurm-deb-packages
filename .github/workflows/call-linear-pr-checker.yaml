@@ -1,0 +1,31 @@
+# sync: true
+
+name: Linear PR Checker
+
+on:
+  pull_request:
+    types: [opened, reopened, edited, synchronize]
+    branches:
+      - main
+  # Repos with a merge queue gate on this check, so it has to report on the
+  # queued merge too — a required check that never posts a status leaves the
+  # merge group waiting until it times out, and the pull request is dropped
+  # from the queue. The shared workflow short-circuits to a pass on
+  # merge_group, since the ticket link was already verified on the pull
+  # request.
+  merge_group:
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  _:
+    if: ${{ vars.ACTIONS_ENABLED == 'true' }}
+    uses: togethercomputer/github-actions/.github/workflows/shared--linear-pr-checker.yaml@v1
+    with:
+      _actions-ref: ""
+    secrets:
+      SDLC_BOT_ID: ${{ secrets.SDLC_BOT_ID }}
+      SDLC_BOT_PRIVATE_KEY: ${{ secrets.SDLC_BOT_PRIVATE_KEY }}

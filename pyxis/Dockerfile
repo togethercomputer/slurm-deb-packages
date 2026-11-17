@@ -1,6 +1,7 @@
 FROM cr.eu-north1.nebius.cloud/soperator/ubuntu:noble
 
 ARG SLURM_VERSION
+ARG SLURM_DEB_REVISION=1
 ARG ENROOT_VERSION
 ARG PYXIS_VERSION
 ARG ARCH
@@ -60,8 +61,8 @@ RUN apt-get update && \
 RUN mkdir -p /tmp/slurm && \
     ARCH_SAFE=$([ "$ARCH" = "linux/amd64" ] && echo "amd64" || echo "arm64") && \
     cd /tmp/slurm && \
-    wget -q https://github.com/togethercomputer/slurm-deb-packages/releases/download/slurm-packages-ubuntu24.04-${SLURM_VERSION}/slurm-smd-dev_${SLURM_VERSION}-1_${ARCH_SAFE}.deb \
-        https://github.com/togethercomputer/slurm-deb-packages/releases/download/slurm-packages-ubuntu24.04-${SLURM_VERSION}/slurm-smd_${SLURM_VERSION}-1_${ARCH_SAFE}.deb
+    wget -q https://github.com/togethercomputer/slurm-deb-packages/releases/download/slurm-packages-ubuntu24.04-${SLURM_VERSION}/slurm-smd-dev_${SLURM_VERSION}-${SLURM_DEB_REVISION}_${ARCH_SAFE}.deb \
+        https://github.com/togethercomputer/slurm-deb-packages/releases/download/slurm-packages-ubuntu24.04-${SLURM_VERSION}/slurm-smd_${SLURM_VERSION}-${SLURM_DEB_REVISION}_${ARCH_SAFE}.deb
 RUN <<EOR
     apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get -y install --fix-broken \

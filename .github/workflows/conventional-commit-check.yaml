@@ -1,0 +1,14 @@
+name: Conventional Commit Check
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  check:
+    uses: togethercomputer/github-actions/.github/workflows/shared--conventional-commit-check.yaml@v1
+    permissions:
+      pull-requests: write

@@ -1,0 +1,21 @@
+name: Wait for checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+    branches: [main]
+
+permissions:
+  checks: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  wait-for-checks:
+    uses: togethercomputer/github-actions/.github/workflows/shared--wait-for-checks.yaml@v1
+    with:
+      delay: "60"
+      timeout: "3600"
+      ignore_pattern: "[Cc]odecov.*|.*[Ll]inear [Tt]icket.*|.*[Bb]roly.*|.*[Rr]eview / [Rr]eview.*|[Cc]ursor [Bb]ugbot"

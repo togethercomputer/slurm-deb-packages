@@ -1,0 +1,16 @@
+name: Renovate
+
+on:
+  schedule:
+    - cron: 0 4 * * 1-5 # weekdays at 4am UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  renovate:
+    uses: togethercomputer/github-actions/.github/workflows/shared--renovate.yaml@v1
+    secrets:
+      SDLC_BOT_ID: ${{ secrets.SDLC_BOT_ID }}
+      SDLC_BOT_PRIVATE_KEY: ${{ secrets.SDLC_BOT_PRIVATE_KEY }}
