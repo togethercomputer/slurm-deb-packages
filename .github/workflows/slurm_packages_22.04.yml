@@ -11,7 +11,7 @@ jobs:
     name: Build for ${{ matrix.platform }}
     permissions:
       contents: write # for softprops/action-gh-release to create GitHub release
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-22.04-4core
 
     strategy:
       fail-fast: false
@@ -86,3 +86,33 @@ jobs:
 
       - name: Cleanup
         run: rm -rf slurm_packages_output/*.deb
+
+  publish-amd64:
+    needs: build
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/publish-package.yaml
+    with:
+      instance: public-tcloud
+      package_type: deb
+      repository: together-public
+      username: ci-publisher
+      artifact_name: slurm-debs-X64
+      artifacts: slurm_packages_output/debs/*.deb
+      publish: true
+
+  publish-arm64:
+    needs: build
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/publish-package.yaml
+    with:
+      instance: public-tcloud
+      package_type: deb
+      repository: together-public
+      username: ci-publisher
+      artifact_name: slurm-debs-ARM64
+      artifacts: slurm_packages_output/debs/*.deb
+      publish: true
