@@ -34,6 +34,7 @@ on:
       - .github/build-matrix.json
       - .github/scripts/select-builds.sh
       - .github/workflows/build.yaml
+      - .github/workflows/build-one.yaml
       - cuda-mock-packages/**
       - cuda-samples/**
       - gdrcopy/**
@@ -57,6 +58,7 @@ jobs:
       pull-requests: read
     outputs:
       builds: ${{ steps.select.outputs.builds }}
+      dependent_builds: ${{ steps.select.outputs.dependent_builds }}
       releases: ${{ steps.select.outputs.releases }}
       publish: ${{ steps.select.outputs.publish }}
     steps:
@@ -95,52 +97,33 @@ jobs:
   build:
     needs: select
     if: needs.select.outputs.builds != '[]'
-    name: ${{ matrix.artifact }}
-    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      actions: read
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(needs.select.outputs.builds) }}
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
+        entry: ${{ fromJSON(needs.select.outputs.builds) }}
+    uses: ./.github/workflows/build-one.yaml
+    with:
+      entry: ${{ toJSON(matrix.entry) }}
 
-      - name: Build image
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
-        with:
-          context: .
-          file: ${{ matrix.dockerfile }}
-          push: false
-          load: true
-          tags: builder:${{ matrix.artifact }}
-          build-args: ${{ matrix.build_args }}
-
-      - name: Copy build output
-        env:
-          IMAGE: builder:${{ matrix.artifact }}
-          OUTPUT: ${{ matrix.output }}
-        run: |
-          set -euo pipefail
-          mkdir -p out
-          cid="$(docker create "${IMAGE}")"
-          if [[ "${OUTPUT}" == */ ]]; then
-            docker cp "${cid}:${OUTPUT}." out/
-          else
-            docker cp "${cid}:${OUTPUT}" out/
-          fi
-          docker rm "${cid}"
-          ls -la out
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: ${{ matrix.artifact }}
-          path: out/${{ matrix.files }}
-          if-no-files-found: error
+  build-dependent:
+    needs: [select, build]
+    if: "!cancelled() && needs.select.outputs.dependent_builds != '[]'"
+    permissions:
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        entry: ${{ fromJSON(needs.select.outputs.dependent_builds) }}
+    uses: ./.github/workflows/build-one.yaml
+    with:
+      entry: ${{ toJSON(matrix.entry) }}
 
   release:
-    needs: [select, build]
+    needs: [select, build, build-dependent]
     if: >-
       !cancelled() && github.event_name == 'workflow_dispatch' && inputs.release &&
       needs.select.outputs.releases != '[]'

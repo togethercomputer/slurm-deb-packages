@@ -5,8 +5,7 @@ on:
     types: [opened, synchronize, reopened, labeled, unlabeled]
     branches: [main]
 
-permissions:
-  checks: read
+permissions: {}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -14,8 +13,14 @@ concurrency:
 
 jobs:
   wait-for-checks:
-    uses: togethercomputer/github-actions/.github/workflows/shared--wait-for-checks.yaml@v1
-    with:
-      delay: "60"
-      timeout: "3600"
-      ignore_pattern: "[Cc]odecov.*|.*[Ll]inear [Tt]icket.*|.*[Bb]roly.*|.*[Rr]eview / [Rr]eview.*|[Cc]ursor [Bb]ugbot"
+    runs-on: ubuntu-latest
+    permissions:
+      checks: read
+    steps:
+      - name: Wait for all checks to complete
+        uses: poseidon/wait-for-status-checks@e7e24423722c5b8e97a6dd5848827d2a412f812d # v0.7.0
+        with:
+          token: ${{ github.token }}
+          delay: 60s
+          timeout: 3600s
+          ignore_pattern: "[Cc]odecov.*|.*[Bb]roly.*|.*[Rr]eview / [Rr]eview.*|[Cc]ursor [Bb]ugbot"

@@ -8,7 +8,16 @@ on:
 permissions: {}
 
 jobs:
-  check:
-    uses: togethercomputer/github-actions/.github/workflows/shared--conventional-commit-check.yaml@v1
-    permissions:
-      pull-requests: write
+  check-title:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -euo pipefail
+          pattern='^(feat|fix|perf|revert|refactor|style|chore|docs|test|ci|build)(\([^)]+\))?!?: .+'
+          if [[ ! "${TITLE}" =~ ${pattern} ]]; then
+            echo "::error::PR title '${TITLE}' is not a conventional commit (type(scope)!: description)"
+            exit 1
+          fi

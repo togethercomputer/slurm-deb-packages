@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Usage: select-builds.sh <matrix.json> [changed-files.txt] [base-matrix.json]
 # Env: TARGET, DISTRIBUTION, VERSION (empty or "all" = no filter), REPUBLISH_RUN_ID.
-# Prints builds=, releases= and publish= JSON lines for $GITHUB_OUTPUT.
+# Prints builds=, dependent_builds=, releases= and publish= JSON lines for $GITHUB_OUTPUT.
 set -euo pipefail
 
 matrix="$1"
@@ -25,7 +25,7 @@ if [[ -n "$changed" ]]; then
     hit=false
     while IFS= read -r file; do
       [[ -n "$file" ]] || continue
-      if [[ "$file" == ".github/workflows/build.yaml" || "$file" == ".github/scripts/select-builds.sh" ]]; then
+      if [[ "$file" == ".github/workflows/build.yaml" || "$file" == ".github/workflows/build-one.yaml" || "$file" == ".github/scripts/select-builds.sh" ]]; then
         [[ "$id" == "cuda-mocks-ubuntu22.04-0.0.1" ]] && hit=true
       fi
       while IFS= read -r pattern; do
@@ -42,6 +42,9 @@ if [[ -n "$changed" ]]; then
       ids+=("$id")
     fi
   done < <(jq -c '.[]' <<<"$selected")
+  while IFS= read -r dependent; do
+    ids+=("$dependent")
+  done < <(jq -r --args '.[] | select(.requires and (.requires as $r | $ARGS.positional | index($r))) | "\(.target)-\(.distribution)-\(.version)"' ${ids[@]+"${ids[@]}"} <<<"$selected")
   selected="$(jq -c --args '[.[] | select("\(.target)-\(.distribution)-\(.version)" as $id | $ARGS.positional | index($id))]' ${ids[@]+"${ids[@]}"} <<<"$selected")"
 fi
 
@@ -68,6 +71,9 @@ per_arch="$(jq -c '
    | arches[$arch] as $a
    | {
        id: "\($e.target)-\($e.distribution)-\($e.version)",
+       distribution: $e.distribution,
+       version: $e.version,
+       requires: ($e.requires // ""),
        arch: $arch,
        artifact: "\($e.target)-\($e.distribution)-\($e.version)-\($arch)",
        runner: $a.runner,
@@ -91,9 +97,11 @@ publish="$(jq -c '[.[] | select(.publish) | {artifact}]' <<<"$per_arch")"
 
 if [[ -n "${REPUBLISH_RUN_ID:-}" ]]; then
   echo "builds=[]"
+  echo "dependent_builds=[]"
   echo "releases=[]"
 else
-  echo "builds=$(jq -c 'map(del(.publish))' <<<"$per_arch")"
+  echo "builds=$(jq -c 'map(select(.requires == "") | del(.publish))' <<<"$per_arch")"
+  echo "dependent_builds=$(jq -c 'map(select(.requires != "") | del(.publish))' <<<"$per_arch")"
   echo "releases=$releases"
 fi
 echo "publish=$publish"

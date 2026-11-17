@@ -1,0 +1,78 @@
+name: Build one package
+
+on:
+  workflow_call:
+    inputs:
+      entry:
+        description: One per-arch entry emitted by .github/scripts/select-builds.sh
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build:
+    name: ${{ fromJSON(inputs.entry).artifact }}
+    runs-on: ${{ fromJSON(inputs.entry).runner }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Fetch slurm debs
+        if: fromJSON(inputs.entry).requires != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUIRES: ${{ fromJSON(inputs.entry).requires }}
+          ARCH: ${{ fromJSON(inputs.entry).arch }}
+          DIST: ${{ fromJSON(inputs.entry).distribution }}
+          VERSION: ${{ fromJSON(inputs.entry).version }}
+        run: |
+          set -euo pipefail
+          mkdir -p slurm-debs
+          if gh run download "${GITHUB_RUN_ID}" -R "${GITHUB_REPOSITORY}" -n "${REQUIRES}-${ARCH}" -D slurm-debs; then
+            echo "slurm debs from ${REQUIRES}-${ARCH} in this run"
+          else
+            tag="slurm-packages-${DIST}-${VERSION}"
+            gh release download "${tag}" -R "${GITHUB_REPOSITORY}" -D slurm-debs \
+              -p "slurm-smd_${VERSION}-1+${DIST}_${ARCH}.deb" -p "slurm-smd-dev_${VERSION}-1+${DIST}_${ARCH}.deb" ||
+              gh release download "${tag}" -R "${GITHUB_REPOSITORY}" -D slurm-debs \
+                -p "slurm-smd_${VERSION}-1_${ARCH}.deb" -p "slurm-smd-dev_${VERSION}-1_${ARCH}.deb"
+            echo "slurm debs from release ${tag}"
+          fi
+          ls -la slurm-debs
+
+      - name: Build image
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          file: ${{ fromJSON(inputs.entry).dockerfile }}
+          push: false
+          load: true
+          tags: builder:${{ fromJSON(inputs.entry).artifact }}
+          build-args: ${{ fromJSON(inputs.entry).build_args }}
+
+      - name: Copy build output
+        env:
+          IMAGE: builder:${{ fromJSON(inputs.entry).artifact }}
+          OUTPUT: ${{ fromJSON(inputs.entry).output }}
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          cid="$(docker create "${IMAGE}")"
+          if [[ "${OUTPUT}" == */ ]]; then
+            docker cp "${cid}:${OUTPUT}." out/
+          else
+            docker cp "${cid}:${OUTPUT}" out/
+          fi
+          docker rm "${cid}"
+          ls -la out
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ fromJSON(inputs.entry).artifact }}
+          path: out/${{ fromJSON(inputs.entry).files }}
+          if-no-files-found: error

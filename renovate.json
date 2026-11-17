@@ -1,21 +1,26 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
-  "labels": ["dependencies"],
-  "schedule": ["every 6 hours every weekday"],
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests"
+  ],
+  "labels": [
+    "dependencies"
+  ],
+  "schedule": [
+    "every 6 hours every weekday"
+  ],
   "packageRules": [
     {
-      "description": "togethercomputer/github-actions reusable workflows stay on the v1 tag",
-      "matchManagers": ["github-actions"],
-      "matchPackageNames": ["/^togethercomputer\\/github-actions/"],
-      "pinDigests": false
-    },
-    {
-      "matchManagers": ["github-actions"],
+      "matchManagers": [
+        "github-actions"
+      ],
       "groupName": "workflow-actions"
     },
     {
-      "matchManagers": ["dockerfile"],
+      "matchManagers": [
+        "dockerfile"
+      ],
       "groupName": "base-images"
     }
   ]
