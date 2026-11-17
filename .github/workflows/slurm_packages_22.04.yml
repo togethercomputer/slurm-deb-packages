@@ -92,6 +92,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      actions: read
     uses: ./.github/workflows/publish-package.yaml
     with:
       instance: public-tcloud
@@ -99,7 +100,7 @@ jobs:
       repository: together-public
       username: ci-publisher
       artifact_name: slurm-debs-X64
-      artifacts: slurm_packages_output/debs/*.deb
+      artifacts: "*.deb"
       publish: true
 
   publish-arm64:
@@ -107,6 +108,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      actions: read
     uses: ./.github/workflows/publish-package.yaml
     with:
       instance: public-tcloud
@@ -114,5 +116,5 @@ jobs:
       repository: together-public
       username: ci-publisher
       artifact_name: slurm-debs-ARM64
-      artifacts: slurm_packages_output/debs/*.deb
+      artifacts: "*.deb"
       publish: true

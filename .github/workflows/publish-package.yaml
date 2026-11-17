@@ -75,18 +75,23 @@ on:
         description: If set, download this Actions artifact into the workspace before publishing (for callers that build the package in a prior job).
         type: string
         default: ""
+      artifact_run_id:
+        description: Workflow run that uploaded artifact_name. Empty downloads from the current run.
+        type: string
+        default: ""
       dry_run:
         description: Verify OIDC, NetBird join and Pulp reachability without authenticating to Pulp, uploading or publishing.
         type: boolean
         default: false
 
 concurrency:
-  group: publish-package-${{ inputs.instance }}-${{ inputs.repository }}-${{ inputs.dry_run && format('dry-{0}-{1}', github.run_id, inputs.artifact_name) || 'live' }}
+  group: publish-package-${{ inputs.instance }}-${{ inputs.repository }}-${{ github.run_id }}-${{ inputs.artifact_name }}
   cancel-in-progress: false
 
 permissions:
   contents: read
   id-token: write
+  actions: read
 
 jobs:
   publish:
@@ -101,26 +106,31 @@ jobs:
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
           name: ${{ inputs.artifact_name }}
+          run-id: ${{ inputs.artifact_run_id || github.run_id }}
+          github-token: ${{ github.token }}
 
       - name: Resolve prod target (host + publisher secret)
         id: target
+        env:
+          INSTANCE: ${{ inputs.instance }}
+          USERNAME: ${{ inputs.username }}
         run: |
           set -euo pipefail
-          case "${{ inputs.instance }}" in
+          case "$INSTANCE" in
             private)
               echo "host=repos-private.platform.internal.together.ai" >> "$GITHUB_OUTPUT"
-              echo "pw_secret=platform-prod-pulp3-internal-svc-${{ inputs.username }}" >> "$GITHUB_OUTPUT" ;;
+              echo "pw_secret=platform-prod-pulp3-internal-svc-$USERNAME" >> "$GITHUB_OUTPUT" ;;
             public)
               echo "host=repos-public.platform.internal.together.ai" >> "$GITHUB_OUTPUT"
-              echo "pw_secret=platform-prod-pulp-svc-${{ inputs.username }}" >> "$GITHUB_OUTPUT" ;;
+              echo "pw_secret=platform-prod-pulp-svc-$USERNAME" >> "$GITHUB_OUTPUT" ;;
             public-tcloud)
               # Reached over the mesh; the publisher password lives in platform's
               # ASM (like every other instance) so the same platform OIDC role
               # reads it in-account -- no cross-account IAM. The runner joins the
               # mesh with the platform github-runners key and reaches this host.
               echo "host=apt-api.internal.together.ai" >> "$GITHUB_OUTPUT"
-              echo "pw_secret=platform-prod-pulp-tcloud-svc-${{ inputs.username }}" >> "$GITHUB_OUTPUT" ;;
-            *) echo "::error::unknown instance ${{ inputs.instance }}"; exit 1 ;;
+              echo "pw_secret=platform-prod-pulp-tcloud-svc-$USERNAME" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::unknown instance $INSTANCE"; exit 1 ;;
           esac
 
       - name: Resolve GHA OIDC role
@@ -251,14 +261,16 @@ jobs:
         if: ${{ !inputs.dry_run }}
         env:
           PULP_PASSWORD: ${{ steps.secrets.outputs.pulppw }}
+          PULP_USERNAME: ${{ inputs.username }}
+          PULP_HOST: ${{ steps.target.outputs.host }}
         run: |
           set -euo pipefail
           mkdir -p ~/.config/pulp
           cat > ~/.config/pulp/cli.toml <<EOF
           [cli]
-          base_url = "https://${{ steps.target.outputs.host }}"
+          base_url = "https://${PULP_HOST}"
           api_root = "/"
-          username = "${{ inputs.username }}"
+          username = "${PULP_USERNAME}"
           password = "${PULP_PASSWORD}"
           verify_ssl = true
           EOF
@@ -283,6 +295,11 @@ jobs:
 
       - name: Upload + publish
         if: ${{ !inputs.dry_run }}
+        env:
+          ARTIFACTS: ${{ inputs.artifacts }}
+          PACKAGE_TYPE: ${{ inputs.package_type }}
+          REPOSITORY: ${{ inputs.repository }}
+          PUBLISH: ${{ inputs.publish }}
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -302,19 +319,19 @@ jobs:
             echo "::error::failed after 3 attempts: $*"
             return 1
           }
-          files=( ${{ inputs.artifacts }} )
-          [ ${#files[@]} -gt 0 ] || { echo "::error::no files matched '${{ inputs.artifacts }}'"; exit 1; }
+          files=( $ARTIFACTS )
+          [ ${#files[@]} -gt 0 ] || { echo "::error::no files matched '$ARTIFACTS'"; exit 1; }
           for f in "${files[@]}"; do
-            echo ">>> uploading $f -> ${{ inputs.package_type }}:${{ inputs.repository }}"
-            retry pulp ${{ inputs.package_type }} content upload --file "$f" --repository "${{ inputs.repository }}"
+            echo ">>> uploading $f -> ${PACKAGE_TYPE}:${REPOSITORY}"
+            retry pulp "$PACKAGE_TYPE" content upload --file "$f" --repository "$REPOSITORY"
           done
-          if [ "${{ inputs.publish }}" = "true" ]; then
-            case "${{ inputs.package_type }}" in
+          if [ "$PUBLISH" = "true" ]; then
+            case "$PACKAGE_TYPE" in
               deb|rpm)
-                echo ">>> creating ${{ inputs.package_type }} publication for ${{ inputs.repository }}"
-                retry pulp ${{ inputs.package_type }} publication create --repository "${{ inputs.repository }}" ;;
+                echo ">>> creating ${PACKAGE_TYPE} publication for ${REPOSITORY}"
+                retry pulp "$PACKAGE_TYPE" publication create --repository "$REPOSITORY" ;;
               *)
-                echo ">>> ${{ inputs.package_type }} distributions serve the repository directly; no publication step" ;;
+                echo ">>> ${PACKAGE_TYPE} distributions serve the repository directly; no publication step" ;;
             esac
           fi
           echo "done"

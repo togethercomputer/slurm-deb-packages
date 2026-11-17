@@ -1,0 +1,42 @@
+name: Publish built slurm debs
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Run that already uploaded slurm-debs-X64 and slurm-debs-ARM64
+        required: true
+        type: string
+
+jobs:
+  publish-amd64:
+    permissions:
+      contents: read
+      id-token: write
+      actions: read
+    uses: ./.github/workflows/publish-package.yaml
+    with:
+      instance: public-tcloud
+      package_type: deb
+      repository: together-public
+      username: ci-publisher
+      artifact_name: slurm-debs-X64
+      artifact_run_id: ${{ inputs.run_id }}
+      artifacts: "*.deb"
+      publish: true
+
+  publish-arm64:
+    permissions:
+      contents: read
+      id-token: write
+      actions: read
+    uses: ./.github/workflows/publish-package.yaml
+    with:
+      instance: public-tcloud
+      package_type: deb
+      repository: together-public
+      username: ci-publisher
+      artifact_name: slurm-debs-ARM64
+      artifact_run_id: ${{ inputs.run_id }}
+      artifacts: "*.deb"
+      publish: true
