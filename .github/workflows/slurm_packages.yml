@@ -11,7 +11,7 @@ jobs:
     name: Build for ${{ matrix.platform }}
     permissions:
       contents: write  # for softprops/action-gh-release to create GitHub release
-    runs-on: ubuntu-22.04-4core
+    runs-on: ${{ matrix.runner }}
 
     strategy:
       fail-fast: false
@@ -51,6 +51,7 @@ jobs:
           load: true
           build-args: |
             SLURM_VERSION=${{ matrix.slurm.version }}
+            DISTRO=${{ matrix.distribution }}
             LD_LIBRARY_PATH=${{ matrix.ld_library_path }}
 
       - name: Create slurm_packages_output directory
@@ -110,7 +111,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: togethercomputer/pulp3/.github/workflows/publish-package.yaml@main
+    uses: togethercomputer/pulp3/.github/workflows/publish-package.yaml@e8690f6dd27f44d5addb2e9919ccb0dd91a32c59 # main
     with:
       instance: public-tcloud
       package_type: deb
