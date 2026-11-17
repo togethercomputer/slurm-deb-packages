@@ -8,6 +8,8 @@ permissions:
 
 jobs:
   build:
+    # Set SLURM_PUBLISH_RUN_UBUNTU2404 to republish that run and skip the build. Leave it unset.
+    if: vars.SLURM_PUBLISH_RUN_UBUNTU2404 == ''
     name: Build for ${{ matrix.platform }}
     permissions:
       contents: write  # for softprops/action-gh-release to create GitHub release
@@ -89,6 +91,7 @@ jobs:
 
   publish-amd64:
     needs: build
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
     permissions:
       contents: read
       id-token: write
@@ -100,11 +103,13 @@ jobs:
       repository: together-public
       username: ci-publisher
       artifact_name: slurm-debs-X64
+      artifact_run_id: ${{ vars.SLURM_PUBLISH_RUN_UBUNTU2404 }}
       artifacts: "*.deb"
       publish: true
 
   publish-arm64:
     needs: build
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
     permissions:
       contents: read
       id-token: write
@@ -116,5 +121,6 @@ jobs:
       repository: together-public
       username: ci-publisher
       artifact_name: slurm-debs-ARM64
+      artifact_run_id: ${{ vars.SLURM_PUBLISH_RUN_UBUNTU2404 }}
       artifacts: "*.deb"
       publish: true
