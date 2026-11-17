@@ -59,12 +59,18 @@ RUN cd /etc/apt/sources.list.d && \
 
 ENV PATH=/usr/mpi/gcc/openmpi-${OPENMPI_VERSION}/bin:$PATH
 
-# Build deb packages for Slurm
-RUN cd /usr/src/slurm-${SLURM_VERSION} && \
-    ARCH=$(uname -m) && \
-    sed -i "s|--with-pmix\b|--with-pmix=/usr/lib/${ARCH}-linux-gnu/pmix2|" debian/rules && \
-    # Fix bug in slurm 25.11.x: debian/rules incorrectly uses dh_perl instead of perl for inline editing
-    sed -i 's|dh_perl|perl|g' debian/rules && \
+# Vendored debian/rules (pmix path, dh_perl override) and a dh_perl that
+# does not use $^X. Under qemu-user $^X is the script itself, so the stock
+# helper rewrites shebangs to /usr/bin/dh_perl and then fails on -p/-i.
+COPY slurm-packages/dh_perl /usr/bin/dh_perl
+COPY slurm-packages/debian/ /tmp/slurm-debian/
+RUN chmod 755 /usr/bin/dh_perl && \
+    cd /usr/src/slurm-${SLURM_VERSION} && \
+    case "${SLURM_VERSION}" in \
+      25.05*) cp /tmp/slurm-debian/rules-25.05 debian/rules ;; \
+      25.11*) cp /tmp/slurm-debian/rules-25.11 debian/rules ;; \
+      *) echo "no vendored debian/rules for ${SLURM_VERSION}" >&2; exit 1 ;; \
+    esac && \
     mk-build-deps -i debian/control -t "apt-get -o Debug::pkgProblemResolver=yes --no-install-recommends -y" && \
     debuild -b -uc -us
 
