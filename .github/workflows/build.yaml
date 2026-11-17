@@ -96,6 +96,7 @@ jobs:
 
   build:
     needs: select
+    name: ${{ matrix.entry.artifact }}
     if: needs.select.outputs.builds != '[]'
     permissions:
       contents: read
@@ -110,6 +111,7 @@ jobs:
 
   build-dependent:
     needs: [select, build]
+    name: ${{ matrix.entry.artifact }}
     if: "!cancelled() && needs.select.outputs.dependent_builds != '[]'"
     permissions:
       contents: read
