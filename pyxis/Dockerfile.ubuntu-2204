@@ -56,12 +56,7 @@ RUN apt-get update && \
     setcap cap_sys_admin+pe /usr/bin/enroot-mksquashovlfs && \
     setcap cap_sys_admin,cap_mknod+pe /usr/bin/enroot-aufs2ovlfs
 
-# Download slurm
-RUN mkdir -p /tmp/slurm && \
-    ARCH_SAFE=$([ "$ARCH" = "linux/amd64" ] && echo "amd64" || echo "arm64") && \
-    cd /tmp/slurm && \
-    wget -q https://github.com/togethercomputer/slurm-deb-packages/releases/download/slurm-packages-ubuntu22.04-${SLURM_VERSION}/slurm-smd-dev_${SLURM_VERSION}-1_${ARCH_SAFE}.deb \
-        https://github.com/togethercomputer/slurm-deb-packages/releases/download/slurm-packages-ubuntu22.04-${SLURM_VERSION}/slurm-smd_${SLURM_VERSION}-1_${ARCH_SAFE}.deb
+COPY slurm-debs/slurm-smd_*.deb slurm-debs/slurm-smd-dev_*.deb /tmp/slurm/
 RUN <<EOR
     apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get -y install --fix-broken \

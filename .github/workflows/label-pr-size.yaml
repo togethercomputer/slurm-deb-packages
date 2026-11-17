@@ -1,0 +1,44 @@
+name: Label Pull Request with T-shirt Size
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  label-size:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Apply size label
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          ADDITIONS: ${{ github.event.pull_request.additions }}
+          DELETIONS: ${{ github.event.pull_request.deletions }}
+        run: |
+          set -euo pipefail
+          lines=$((ADDITIONS + DELETIONS))
+          if ((lines == 0)); then size=none color=000000
+          elif ((lines <= 10)); then size=x-small color=006400
+          elif ((lines <= 100)); then size=small color=228B22
+          elif ((lines <= 400)); then size=medium color=DAA520
+          elif ((lines <= 800)); then size=large color=FF8C00
+          else size=x-large color=8B0000
+          fi
+          label="size:${size}"
+          echo "${lines} changed lines -> ${label}"
+          gh label create "${label}" -R "${GITHUB_REPOSITORY}" --color "${color}" \
+            --description "Pull request size based on number of line diffs" --force
+          gh pr view "${PR}" -R "${GITHUB_REPOSITORY}" --json labels --jq '.labels[].name | select(startswith("size:"))' |
+            while IFS= read -r old; do
+              if [[ "${old}" != "${label}" ]]; then
+                gh pr edit "${PR}" -R "${GITHUB_REPOSITORY}" --remove-label "${old}"
+              fi
+            done
+          gh pr edit "${PR}" -R "${GITHUB_REPOSITORY}" --add-label "${label}"

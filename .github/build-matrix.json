@@ -1,0 +1,315 @@
+[
+  {
+    "target": "slurm",
+    "distribution": "ubuntu24.04",
+    "version": "25.11.8",
+    "dockerfile": "slurm-packages/Dockerfile",
+    "paths": [
+      "slurm-packages/Dockerfile",
+      "slurm-packages/dh_perl",
+      "slurm-packages/debian/**"
+    ],
+    "build_args": [
+      "SLURM_VERSION=25.11.8",
+      "DISTRO=ubuntu24.04",
+      "LD_LIBRARY_PATH={ld_library_path}"
+    ],
+    "output": "/usr/src/debs/",
+    "files": "*.deb",
+    "release_tag": "slurm-packages-ubuntu24.04-25.11.8",
+    "release_name": "Slurm packages 25.11.8 for ubuntu24.04",
+    "publish": true
+  },
+  {
+    "target": "slurm",
+    "distribution": "ubuntu22.04",
+    "version": "25.11.8",
+    "dockerfile": "slurm-packages/Dockerfile.ubuntu-2204",
+    "paths": [
+      "slurm-packages/Dockerfile.ubuntu-2204",
+      "slurm-packages/dh_perl",
+      "slurm-packages/debian/**"
+    ],
+    "build_args": [
+      "SLURM_VERSION=25.11.8",
+      "DISTRO=ubuntu22.04",
+      "LD_LIBRARY_PATH={ld_library_path}"
+    ],
+    "output": "/usr/src/debs/",
+    "files": "*.deb",
+    "release_tag": "slurm-packages-ubuntu22.04-25.11.8",
+    "release_name": "Slurm packages 25.11.8 for ubuntu22.04",
+    "publish": true
+  },
+  {
+    "target": "slurm",
+    "distribution": "ubuntu24.04",
+    "version": "25.05.5",
+    "dockerfile": "slurm-packages/Dockerfile",
+    "paths": [
+      "slurm-packages/Dockerfile",
+      "slurm-packages/dh_perl",
+      "slurm-packages/debian/**"
+    ],
+    "build_args": [
+      "SLURM_VERSION=25.05.5",
+      "LD_LIBRARY_PATH={ld_library_path}"
+    ],
+    "output": "/usr/src/debs/",
+    "files": "*.deb",
+    "release_tag": "slurm-packages-ubuntu24.04-25.05.5",
+    "release_name": "Slurm packages 25.05.5 for ubuntu24.04"
+  },
+  {
+    "target": "slurm",
+    "distribution": "ubuntu22.04",
+    "version": "25.05.5",
+    "dockerfile": "slurm-packages/Dockerfile.ubuntu-2204",
+    "paths": [
+      "slurm-packages/Dockerfile.ubuntu-2204",
+      "slurm-packages/dh_perl",
+      "slurm-packages/debian/**"
+    ],
+    "build_args": [
+      "SLURM_VERSION=25.05.5",
+      "LD_LIBRARY_PATH={ld_library_path}"
+    ],
+    "output": "/usr/src/debs/",
+    "files": "*.deb",
+    "release_tag": "slurm-packages-ubuntu22.04-25.05.5",
+    "release_name": "Slurm packages 25.05.5 for ubuntu22.04"
+  },
+  {
+    "target": "slurm-wlm-hop",
+    "distribution": "ubuntu22.04",
+    "version": "23.02.8",
+    "arches": [
+      "amd64"
+    ],
+    "dockerfile": "slurm-packages/Dockerfile.ubuntu-2204-wlm-hop",
+    "paths": [
+      "slurm-packages/Dockerfile.ubuntu-2204-wlm-hop"
+    ],
+    "build_args": [
+      "SLURM_VERSION=23.02.8"
+    ],
+    "output": "/usr/src/debs/",
+    "files": "*.deb",
+    "release_tag": "slurm-wlm-ubuntu22.04-23.02.8",
+    "release_name": "slurm-wlm 23.02.8 hop packages for ubuntu22.04"
+  },
+  {
+    "target": "pyxis",
+    "distribution": "ubuntu24.04",
+    "version": "25.11.8",
+    "dockerfile": "pyxis/Dockerfile",
+    "paths": [
+      "pyxis/Dockerfile"
+    ],
+    "build_args": [
+      "SLURM_VERSION=25.11.8",
+      "ENROOT_VERSION=4.0.1",
+      "PYXIS_VERSION=0.21.0",
+      "ARCH={platform}"
+    ],
+    "output": "/usr/src/debs/",
+    "files": "*.deb",
+    "release_tag": "pyxis-0.21.0_slurm_25.11.8_enroot_4.0.1_ubuntu24.04",
+    "release_name": "Pyxis 0.21.0 for Slurm 25.11.8 and ubuntu24.04",
+    "release_body": "Pyxis 0.21.0 for Slurm 25.11.8, Enroot 4.0.1 and ubuntu24.04",
+    "requires": "slurm-ubuntu24.04-25.11.8"
+  },
+  {
+    "target": "pyxis",
+    "distribution": "ubuntu22.04",
+    "version": "25.11.8",
+    "dockerfile": "pyxis/Dockerfile.ubuntu-2204",
+    "paths": [
+      "pyxis/Dockerfile.ubuntu-2204"
+    ],
+    "build_args": [
+      "SLURM_VERSION=25.11.8",
+      "ENROOT_VERSION=4.0.1",
+      "PYXIS_VERSION=0.21.0",
+      "ARCH={platform}"
+    ],
+    "output": "/usr/src/debs/",
+    "files": "*.deb",
+    "release_tag": "pyxis-0.21.0_slurm_25.11.8_enroot_4.0.1_ubuntu22.04",
+    "release_name": "Pyxis 0.21.0 for Slurm 25.11.8 and ubuntu22.04",
+    "release_body": "Pyxis 0.21.0 for Slurm 25.11.8, Enroot 4.0.1 and ubuntu22.04",
+    "requires": "slurm-ubuntu22.04-25.11.8"
+  },
+  {
+    "target": "pyxis",
+    "distribution": "ubuntu24.04",
+    "version": "25.05.5",
+    "dockerfile": "pyxis/Dockerfile",
+    "paths": [
+      "pyxis/Dockerfile"
+    ],
+    "build_args": [
+      "SLURM_VERSION=25.05.5",
+      "ENROOT_VERSION=4.0.1",
+      "PYXIS_VERSION=0.21.0",
+      "ARCH={platform}"
+    ],
+    "output": "/usr/src/debs/",
+    "files": "*.deb",
+    "release_tag": "pyxis-0.21.0_slurm_25.05.5_enroot_4.0.1_ubuntu24.04",
+    "release_name": "Pyxis 0.21.0 for Slurm 25.05.5 and ubuntu24.04",
+    "release_body": "Pyxis 0.21.0 for Slurm 25.05.5, Enroot 4.0.1 and ubuntu24.04",
+    "requires": "slurm-ubuntu24.04-25.05.5"
+  },
+  {
+    "target": "pyxis",
+    "distribution": "ubuntu22.04",
+    "version": "25.05.5",
+    "dockerfile": "pyxis/Dockerfile.ubuntu-2204",
+    "paths": [
+      "pyxis/Dockerfile.ubuntu-2204"
+    ],
+    "build_args": [
+      "SLURM_VERSION=25.05.5",
+      "ENROOT_VERSION=4.0.1",
+      "PYXIS_VERSION=0.21.0",
+      "ARCH={platform}"
+    ],
+    "output": "/usr/src/debs/",
+    "files": "*.deb",
+    "release_tag": "pyxis-0.21.0_slurm_25.05.5_enroot_4.0.1_ubuntu22.04",
+    "release_name": "Pyxis 0.21.0 for Slurm 25.05.5 and ubuntu22.04",
+    "release_body": "Pyxis 0.21.0 for Slurm 25.05.5, Enroot 4.0.1 and ubuntu22.04",
+    "requires": "slurm-ubuntu22.04-25.05.5"
+  },
+  {
+    "target": "nccl-tests",
+    "distribution": "ubuntu24.04",
+    "version": "12.9.0",
+    "dockerfile": "nccl-tests/nccl-tests-cuda-12.9.0.dockerfile",
+    "paths": [
+      "nccl-tests/nccl-tests-cuda-12.9.0.dockerfile"
+    ],
+    "build_args": [
+      "LD_LIBRARY_PATH={nccl_ld_library_path}"
+    ],
+    "output": "/usr/src/nccl-tests/build/nccl-tests-perf-{uname}.tar.gz",
+    "files": "*.tar.gz",
+    "release_tag": "nccl_tests_12.9.0_ubuntu24.04",
+    "release_name": "NCCL tests for cuda 12.9.0 and ubuntu24.04"
+  },
+  {
+    "target": "nccl-tests",
+    "distribution": "ubuntu24.04",
+    "version": "13.0.2",
+    "dockerfile": "nccl-tests/nccl-tests-cuda-13.0.2.dockerfile",
+    "paths": [
+      "nccl-tests/nccl-tests-cuda-13.0.2.dockerfile"
+    ],
+    "build_args": [
+      "LD_LIBRARY_PATH={nccl_ld_library_path}"
+    ],
+    "output": "/usr/src/nccl-tests/build/nccl-tests-perf-{uname}.tar.gz",
+    "files": "*.tar.gz",
+    "release_tag": "nccl_tests_13.0.2_ubuntu24.04",
+    "release_name": "NCCL tests for cuda 13.0.2 and ubuntu24.04"
+  },
+  {
+    "target": "perftest",
+    "distribution": "ubuntu24.04",
+    "version": "12.9.0",
+    "dockerfile": "perftest/perftest-cuda-12.9.0.dockerfile",
+    "paths": [
+      "perftest/perftest-cuda-12.9.0.dockerfile"
+    ],
+    "build_args": [
+      "ARCH={uname}"
+    ],
+    "output": "/usr/src/perftest/perftest-{uname}.tar.gz",
+    "files": "*.tar.gz",
+    "release_tag": "perftest_12.9.0_ubuntu24.04",
+    "release_name": "Perftest for CUDA 12.9.0 and ubuntu24.04"
+  },
+  {
+    "target": "perftest",
+    "distribution": "ubuntu24.04",
+    "version": "13.0.2",
+    "dockerfile": "perftest/perftest-cuda-13.0.2.dockerfile",
+    "paths": [
+      "perftest/perftest-cuda-13.0.2.dockerfile"
+    ],
+    "build_args": [
+      "ARCH={uname}"
+    ],
+    "output": "/usr/src/perftest/perftest-{uname}.tar.gz",
+    "files": "*.tar.gz",
+    "release_tag": "perftest_13.0.2_ubuntu24.04",
+    "release_name": "Perftest for CUDA 13.0.2 and ubuntu24.04"
+  },
+  {
+    "target": "cuda-samples",
+    "distribution": "ubuntu24.04",
+    "version": "12.9.0",
+    "dockerfile": "cuda-samples/cuda-samples-cuda-12.9.0.dockerfile",
+    "paths": [
+      "cuda-samples/cuda-samples-cuda-12.9.0.dockerfile"
+    ],
+    "build_args": [
+      "ARCH={uname}"
+    ],
+    "output": "/usr/src/cuda-samples-{uname}.tar.gz",
+    "files": "*.tar.gz",
+    "release_tag": "cuda_samples_12.9.0_ubuntu24.04",
+    "release_name": "Cuda samples for cuda 12.9.0 and ubuntu24.04"
+  },
+  {
+    "target": "cuda-samples",
+    "distribution": "ubuntu24.04",
+    "version": "13.0.2",
+    "dockerfile": "cuda-samples/cuda-samples-cuda-13.0.2.dockerfile",
+    "paths": [
+      "cuda-samples/cuda-samples-cuda-13.0.2.dockerfile"
+    ],
+    "build_args": [
+      "ARCH={uname}"
+    ],
+    "output": "/usr/src/cuda-samples-{uname}.tar.gz",
+    "files": "*.tar.gz",
+    "release_tag": "cuda_samples_13.0.2_ubuntu24.04",
+    "release_name": "Cuda samples for cuda 13.0.2 and ubuntu24.04"
+  },
+  {
+    "target": "gdrcopy",
+    "distribution": "ubuntu24.04",
+    "version": "2.5",
+    "dockerfile": "gdrcopy/Dockerfile",
+    "paths": [
+      "gdrcopy/**"
+    ],
+    "build_args": [
+      "DGRCOPY_VERSION=2.5"
+    ],
+    "output": "/gdrcopy/packages/debs/",
+    "files": "*.deb",
+    "release_tag": "gdrcopy-2.5_ubuntu24.04",
+    "release_name": "Dgrcopy packages 2.5 for ubuntu24.04",
+    "release_body": "Dgrcopy packages without gdrdrv-dkms requirements"
+  },
+  {
+    "target": "cuda-mocks",
+    "distribution": "ubuntu22.04",
+    "version": "0.0.1",
+    "dockerfile": "cuda-mock-packages/Dockerfile",
+    "paths": [
+      "cuda-mock-packages/**"
+    ],
+    "build_args": [
+      "BASE_IMAGE=ubuntu:jammy"
+    ],
+    "output": "/cuda-mock-packages/",
+    "files": "*.deb",
+    "release_tag": "cuda_mocks",
+    "release_name": "Cuda mock packages",
+    "release_body": "Mock packages for nvidia-open and cuda-drivers"
+  }
+]

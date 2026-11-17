@@ -1,0 +1,23 @@
+name: Conventional Commit Check
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  check-title:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -euo pipefail
+          pattern='^(feat|fix|perf|revert|refactor|style|chore|docs|test|ci|build)(\([^)]+\))?!?: .+'
+          if [[ ! "${TITLE}" =~ ${pattern} ]]; then
+            echo "::error::PR title '${TITLE}' is not a conventional commit (type(scope)!: description)"
+            exit 1
+          fi

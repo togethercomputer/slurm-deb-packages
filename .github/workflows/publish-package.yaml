@@ -319,7 +319,11 @@ jobs:
             echo "::error::failed after 3 attempts: $*"
             return 1
           }
-          files=( $ARTIFACTS )
+          files=()
+          read -ra patterns <<<"${ARTIFACTS}"
+          for pattern in "${patterns[@]}"; do
+            mapfile -t -O "${#files[@]}" files < <(compgen -G "${pattern}" || true)
+          done
           [ ${#files[@]} -gt 0 ] || { echo "::error::no files matched '$ARTIFACTS'"; exit 1; }
           for f in "${files[@]}"; do
             echo ">>> uploading $f -> ${PACKAGE_TYPE}:${REPOSITORY}"

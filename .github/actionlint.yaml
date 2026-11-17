@@ -1,0 +1,28 @@
+# sync: true
+self-hosted-runner:
+  labels:
+    - ubuntu-22.04-4core
+    - ubuntu-22.04-64core
+    - ubuntu-22.04-8core
+    - ubuntu-22.04-arm-4core
+    - ubuntu-24.04-16core
+    - ubuntu-24.04-4core
+    - ubuntu-24.04-8core
+    - ubuntu-24.04-arm-4core
+    - ubuntu-24.04-arm-64core
+    # VPN static-egress pools (ENG-93180).
+    - ubuntu-24.04-8core-ip-p
+    - ubuntu-24.04-8core-ip-qa
+    - ubuntu-24.04-8core-ip-staging
+    - vpn-prod-ubuntu-24.04-2core
+    - vpn-prod-ubuntu-24.04-4core
+    - vpn-prod-ubuntu-24.04-8core
+    - vpn-qa-ubuntu-24.04-2core
+    - vpn-qa-ubuntu-24.04-4core
+    - vpn-qa-ubuntu-24.04-8core
+paths:
+  # GitHub documents job.workflow_repository and job.workflow_sha; actionlint 1.7.12 rejects them.
+  # TODO(SEC-3062): remove once an actionlint release knows both contexts.
+  "**/.github/workflows/*.{yml,yaml}":
+    ignore:
+      - 'property "workflow_(repository|sha)" is not defined in object type \{check_run_id: number; container: '

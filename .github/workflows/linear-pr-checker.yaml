@@ -1,0 +1,38 @@
+name: Linear PR Checker
+
+on:
+  pull_request:
+    types: [opened, reopened, edited, synchronize]
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  linear_pr_checker:
+    name: Linked Linear Ticket Check
+    if: >-
+      !startsWith(github.head_ref, 'renovate/') &&
+      !startsWith(github.head_ref, 'dependabot/') &&
+      !startsWith(github.head_ref, 'release-please--')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check branch, title and body for a Linear ticket
+        env:
+          BRANCH: ${{ github.head_ref }}
+          TITLE: ${{ github.event.pull_request.title }}
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -euo pipefail
+          ticket='[A-Za-z][A-Za-z0-9]{1,9}-[0-9]+'
+          magic='(ref|refs|part of|related to|closes|closed|close|fixes|fixed|fix|resolves|resolved|resolve|completes|completed|complete)'
+          body_lower="$(tr '[:upper:]' '[:lower:]' <<<"${BODY}")"
+          if [[ "${BRANCH}" =~ ${ticket} ]]; then
+            echo "Linear ticket ${BASH_REMATCH[0]} found in branch"
+          elif [[ "${TITLE}" =~ ${ticket} ]]; then
+            echo "Linear ticket ${BASH_REMATCH[0]} found in title"
+          elif [[ "${body_lower}" =~ ${magic} && "${BODY}" =~ linear\.app/[^[:space:]]*/issue/(${ticket}) ]]; then
+            echo "Linear ticket ${BASH_REMATCH[1]} found in body"
+          else
+            echo "::error::No Linear ticket in the branch, title, or body (body needs a magic word such as 'Ref:' and a linear.app issue URL)"
+            exit 1
+          fi
