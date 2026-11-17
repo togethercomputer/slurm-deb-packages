@@ -1,0 +1,337 @@
+# Upload a package to a prod Pulp instance over the NetBird mesh.
+#
+# Pulp is internal-only (mesh-reachable ALB, no public endpoint). The runner assumes an AWS
+# role via GitHub OIDC, reads all credentials from Secrets Manager at run time (no long-lived
+# GH secrets), joins the prod NetBird mesh, then talks to the Pulp REST API with pulp-cli over
+# HTTPS as a publisher service account. Works for any content type pulp-cli supports (deb,
+# python, rpm, file) as long as the target repository exists in the instance's content config.
+#
+# prod only. Reusable via workflow_dispatch (Actions tab) and workflow_call (other repos).
+#
+# dry_run=true runs the publish path up to Pulp and stops there: OIDC assume, the NetBird
+# setup-key read, NetBird join, DNS/TCP 443/HTTPS to the Pulp host and an unauthenticated GET of
+# /api/v3/status/. It reads no publisher credential, authenticates nothing against Pulp, and never
+# creates content or a publication. Callers run it on pull_request so a broken connect path fails
+# before merge.
+
+name: Publish package (prod)
+
+on:
+  workflow_dispatch:
+    inputs:
+      instance:
+        description: Target prod instance
+        type: choice
+        options: [private, public, public-tcloud]
+        default: private
+        required: true
+      package_type:
+        description: Pulp content type
+        type: choice
+        options: [deb, python, rpm, file]
+        default: deb
+        required: true
+      repository:
+        description: Target repository name (must exist in the instance content config)
+        type: string
+        required: true
+      artifacts:
+        description: File path or glob to upload (relative to the repo root)
+        type: string
+        required: true
+      username:
+        description: Pulp publisher username
+        type: string
+        default: internal-publisher
+      publish:
+        description: Create a publication after upload (deb/rpm; no-op for python/file)
+        type: boolean
+        default: true
+      dry_run:
+        description: Verify OIDC, NetBird join and Pulp reachability without authenticating to Pulp, uploading or publishing
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      instance:
+        type: string
+        default: private
+      package_type:
+        type: string
+        required: true
+      repository:
+        type: string
+        required: true
+      artifacts:
+        type: string
+        required: true
+      username:
+        type: string
+        default: internal-publisher
+      publish:
+        type: boolean
+        default: true
+      artifact_name:
+        description: If set, download this Actions artifact into the workspace before publishing (for callers that build the package in a prior job).
+        type: string
+        default: ""
+      artifact_run_id:
+        description: Workflow run that uploaded artifact_name. Empty downloads from the current run.
+        type: string
+        default: ""
+      dry_run:
+        description: Verify OIDC, NetBird join and Pulp reachability without authenticating to Pulp, uploading or publishing.
+        type: boolean
+        default: false
+
+concurrency:
+  group: publish-package-${{ inputs.instance }}-${{ inputs.repository }}-${{ github.run_id }}-${{ inputs.artifact_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Download prebuilt artifact
+        if: inputs.artifact_name != '' && !inputs.dry_run
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: ${{ inputs.artifact_name }}
+          run-id: ${{ inputs.artifact_run_id || github.run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Resolve prod target (host + publisher secret)
+        id: target
+        env:
+          INSTANCE: ${{ inputs.instance }}
+          USERNAME: ${{ inputs.username }}
+        run: |
+          set -euo pipefail
+          case "$INSTANCE" in
+            private)
+              echo "host=repos-private.platform.internal.together.ai" >> "$GITHUB_OUTPUT"
+              echo "pw_secret=platform-prod-pulp3-internal-svc-$USERNAME" >> "$GITHUB_OUTPUT" ;;
+            public)
+              echo "host=repos-public.platform.internal.together.ai" >> "$GITHUB_OUTPUT"
+              echo "pw_secret=platform-prod-pulp-svc-$USERNAME" >> "$GITHUB_OUTPUT" ;;
+            public-tcloud)
+              # Reached over the mesh; the publisher password lives in platform's
+              # ASM (like every other instance) so the same platform OIDC role
+              # reads it in-account -- no cross-account IAM. The runner joins the
+              # mesh with the platform github-runners key and reaches this host.
+              echo "host=apt-api.internal.together.ai" >> "$GITHUB_OUTPUT"
+              echo "pw_secret=platform-prod-pulp-tcloud-svc-$USERNAME" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::unknown instance $INSTANCE"; exit 1 ;;
+          esac
+
+      - name: Resolve GHA OIDC role
+        id: role
+        env:
+          ROLE_ARN: ${{ vars.PULP_PUBLISH_ROLE_ARN }}
+        run: |
+          set -euo pipefail
+          # All instances use the platform OIDC role: both the github-runners
+          # NetBird key and every instance's publisher password live in platform's
+          # ASM. public-tcloud is reached over the mesh, not by cross-account AWS.
+          if [ -z "${ROLE_ARN}" ]; then
+            echo "::error::vars.PULP_PUBLISH_ROLE_ARN is empty in ${GITHUB_REPOSITORY}; set the repo/org variable to the platform-infra-gha-pulp-publish role ARN"
+            exit 1
+          fi
+          echo "arn=${ROLE_ARN}" >> "$GITHUB_OUTPUT"
+
+      - name: AWS creds via GitHub OIDC
+        id: aws
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.0.2
+        with:
+          role-to-assume: ${{ steps.role.outputs.arn }}
+          aws-region: us-west-2
+
+      - name: Explain OIDC assume failure
+        if: failure() && steps.aws.outcome == 'failure'
+        env:
+          ROLE_ARN: ${{ steps.role.outputs.arn }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          echo "::error::OIDC assume of ${ROLE_ARN} failed for ${GITHUB_REPOSITORY} (event ${EVENT}, ref ${GITHUB_REF}); the role trust policy (platform-infra terraform/bootstrap pulp_publish_trust) must allow this repo's token subject, e.g. repo:${GITHUB_REPOSITORY}:*, or its immutable-ID form"
+
+      - name: Read NetBird setup key + Pulp publisher password from Secrets Manager
+        id: secrets
+        env:
+          PW_SECRET: ${{ steps.target.outputs.pw_secret }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -uo pipefail
+          read_secret() {
+            local id="$1" out
+            if ! out="$(aws secretsmanager get-secret-value --secret-id "${id}" --query SecretString --output text 2>&1)"; then
+              echo "::error::cannot read Secrets Manager secret ${id}: ${out:0:300}"
+              return 1
+            fi
+            printf '%s' "${out}"
+          }
+          setupkey="$(read_secret prod/netbird/setup-keys/github-runners)" || exit 1
+          if [ -z "${setupkey}" ] || [ "${setupkey}" = "None" ]; then
+            echo "::error::NetBird setup key secret prod/netbird/setup-keys/github-runners is empty"
+            exit 1
+          fi
+          echo "::add-mask::${setupkey}"
+          echo "setupkey=${setupkey}" >> "$GITHUB_OUTPUT"
+          # A dry run only joins the mesh; it never reads the publisher credential.
+          if [ "${DRY_RUN}" != "true" ]; then
+            pulpjson="$(read_secret "${PW_SECRET}")" || exit 1
+            # Publisher secret is JSON {"password": "..."} (bootstrap writes it that way); the
+            # NetBird key is a plain string.
+            pulppw="$(jq -r '.password // empty' <<<"${pulpjson}" 2>/dev/null || true)"
+            if [ -z "${pulppw}" ]; then
+              echo "::error::publisher secret ${PW_SECRET} has no .password field"
+              exit 1
+            fi
+            echo "::add-mask::${pulppw}"
+            echo "pulppw=${pulppw}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install NetBird (signed apt repo, no curl-pipe-sh)
+        run: |
+          set -euo pipefail
+          curl -fsSL https://pkgs.netbird.io/debian/public.key | sudo gpg --dearmor -o /usr/share/keyrings/netbird-archive-keyring.gpg
+          echo 'deb [signed-by=/usr/share/keyrings/netbird-archive-keyring.gpg] https://pkgs.netbird.io/debian stable main' | sudo tee /etc/apt/sources.list.d/netbird.list
+          sudo apt-get update
+          sudo apt-get install -y netbird
+
+      - name: Join NetBird mesh
+        run: |
+          set -euo pipefail
+          sudo netbird up --management-url https://access.together.ai:443 --setup-key "${{ steps.secrets.outputs.setupkey }}"
+          for _ in $(seq 1 30); do
+            sudo netbird status | grep -q "Management: Connected" && break
+            sleep 2
+          done
+          sudo netbird status | grep -q "Management: Connected" || { echo "::error::NetBird did not connect"; exit 1; }
+
+      - name: Verify Pulp reachability (DNS, TCP 443, HTTPS)
+        id: reachability
+        env:
+          HOST: ${{ steps.target.outputs.host }}
+        run: |
+          set -uo pipefail
+          timeout_s="${REACHABILITY_TIMEOUT_S:-300}"
+          interval=5
+          attempts=$((timeout_s / interval))
+          stage=""
+          for ((i = 1; i <= attempts; i++)); do
+            if ! getent hosts "${HOST}" >/dev/null 2>&1; then
+              stage="DNS: ${HOST} does not resolve"
+            elif ! timeout 5 bash -c "exec 3<>/dev/tcp/${HOST}/443" 2>/dev/null; then
+              stage="TCP: ${HOST}:443 does not accept connections"
+            elif ! curl -fsS --max-time 20 -o /dev/null "https://${HOST}/api/v3/status/" 2>/dev/null; then
+              stage="HTTPS: GET https://${HOST}/api/v3/status/ failed"
+            else
+              echo "reachable: ${HOST} (DNS, TCP 443, HTTPS) after ${i} attempt(s)"
+              exit 0
+            fi
+            sleep "${interval}"
+          done
+          echo "::error::${stage} over the NetBird mesh after ${timeout_s}s"
+          sudo netbird status -d 2>/dev/null || true
+          exit 1
+
+      - name: Install pulp-cli
+        if: ${{ !inputs.dry_run }}
+        # pulp-cli core ships rpm/python/file/container; the deb command group
+        # is a separate package (pulp-cli-deb) that must be present or
+        # `pulp deb ...` fails with "No such command 'deb'".
+        run: |
+          if command -v pipx >/dev/null 2>&1; then
+            pipx install pulp-cli
+            pipx inject pulp-cli pulp-cli-deb
+          else
+            pip install --user pulp-cli pulp-cli-deb
+          fi
+
+      - name: Configure pulp-cli
+        if: ${{ !inputs.dry_run }}
+        env:
+          PULP_PASSWORD: ${{ steps.secrets.outputs.pulppw }}
+          PULP_USERNAME: ${{ inputs.username }}
+          PULP_HOST: ${{ steps.target.outputs.host }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.config/pulp
+          cat > ~/.config/pulp/cli.toml <<EOF
+          [cli]
+          base_url = "https://${PULP_HOST}"
+          api_root = "/"
+          username = "${PULP_USERNAME}"
+          password = "${PULP_PASSWORD}"
+          verify_ssl = true
+          EOF
+          for _ in $(seq 1 15); do
+            pulp status >/dev/null 2>&1 && break
+            sleep 4
+          done
+          pulp status >/dev/null || { echo "::error::pulp-cli cannot reach https://${{ steps.target.outputs.host }}"; exit 1; }
+
+      - name: Dry run (connectivity only; no Pulp auth, no upload)
+        id: dry_run
+        if: inputs.dry_run
+        env:
+          HOST: ${{ steps.target.outputs.host }}
+        run: |
+          set -uo pipefail
+          status="$(curl -fsS --max-time 30 "https://${HOST}/api/v3/status/")" \
+            || { echo "::error::GET https://${HOST}/api/v3/status/ failed"; exit 1; }
+          jq -e '.versions | length > 0' <<<"${status}" >/dev/null \
+            || { echo "::error::https://${HOST}/api/v3/status/ did not return a Pulp status document"; exit 1; }
+          echo "::notice::dry run passed: ${HOST} reachable over NetBird and serving Pulp $(jq -r '[.versions[] | select(.component == "core") | .version][0]' <<<"${status}"); nothing was uploaded or published"
+
+      - name: Upload + publish
+        if: ${{ !inputs.dry_run }}
+        env:
+          ARTIFACTS: ${{ inputs.artifacts }}
+          PACKAGE_TYPE: ${{ inputs.package_type }}
+          REPOSITORY: ${{ inputs.repository }}
+          PUBLISH: ${{ inputs.publish }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          # pulp-cli polls the background task over HTTP; a large mirror-sync
+          # backlog on the workers can make that poll outlast the ALB/nginx
+          # idle timeout and 504 client-side even though the task keeps
+          # running and finishes fine server-side. Retry a few times rather
+          # than failing the whole job -- both content upload and publication
+          # create are idempotent (same checksum / same repo version, no dupes).
+          retry() {
+            local attempt
+            for attempt in 1 2 3; do
+              "$@" && return 0
+              echo "::warning::attempt $attempt failed (possible gateway timeout on a busy task queue), retrying in 15s..."
+              sleep 15
+            done
+            echo "::error::failed after 3 attempts: $*"
+            return 1
+          }
+          files=( $ARTIFACTS )
+          [ ${#files[@]} -gt 0 ] || { echo "::error::no files matched '$ARTIFACTS'"; exit 1; }
+          for f in "${files[@]}"; do
+            echo ">>> uploading $f -> ${PACKAGE_TYPE}:${REPOSITORY}"
+            retry pulp "$PACKAGE_TYPE" content upload --file "$f" --repository "$REPOSITORY"
+          done
+          if [ "$PUBLISH" = "true" ]; then
+            case "$PACKAGE_TYPE" in
+              deb|rpm)
+                echo ">>> creating ${PACKAGE_TYPE} publication for ${REPOSITORY}"
+                retry pulp "$PACKAGE_TYPE" publication create --repository "$REPOSITORY" ;;
+              *)
+                echo ">>> ${PACKAGE_TYPE} distributions serve the repository directly; no publication step" ;;
+            esac
+          fi
+          echo "done"

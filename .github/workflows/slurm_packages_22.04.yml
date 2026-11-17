@@ -8,6 +8,8 @@ permissions:
 
 jobs:
   build:
+    # Set SLURM_PUBLISH_RUN_UBUNTU2204 to republish that run and skip the build. Leave it unset.
+    if: vars.SLURM_PUBLISH_RUN_UBUNTU2204 == ''
     name: Build for ${{ matrix.platform }}
     permissions:
       contents: write # for softprops/action-gh-release to create GitHub release
@@ -51,6 +53,7 @@ jobs:
           load: true
           build-args: |
             SLURM_VERSION=${{ matrix.slurm.version }}
+            DISTRO=${{ matrix.distribution }}
             LD_LIBRARY_PATH=${{ matrix.ld_library_path }}
 
       - name: Create slurm_packages_output directory
@@ -76,5 +79,48 @@ jobs:
           files: |
             slurm_packages_output/debs/*.deb
 
+      - name: Upload debs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: slurm-debs-${{ matrix.runner }}
+          path: slurm_packages_output/debs/*.deb
+          if-no-files-found: error
+
       - name: Cleanup
         run: rm -rf slurm_packages_output/*.deb
+
+  publish-amd64:
+    needs: build
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    permissions:
+      contents: read
+      id-token: write
+      actions: read
+    uses: ./.github/workflows/publish-package.yaml
+    with:
+      instance: public-tcloud
+      package_type: deb
+      repository: together-public
+      username: ci-publisher
+      artifact_name: slurm-debs-X64
+      artifact_run_id: ${{ vars.SLURM_PUBLISH_RUN_UBUNTU2204 }}
+      artifacts: "*.deb"
+      publish: true
+
+  publish-arm64:
+    needs: build
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    permissions:
+      contents: read
+      id-token: write
+      actions: read
+    uses: ./.github/workflows/publish-package.yaml
+    with:
+      instance: public-tcloud
+      package_type: deb
+      repository: together-public
+      username: ci-publisher
+      artifact_name: slurm-debs-ARM64
+      artifact_run_id: ${{ vars.SLURM_PUBLISH_RUN_UBUNTU2204 }}
+      artifacts: "*.deb"
+      publish: true
